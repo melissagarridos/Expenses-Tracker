@@ -31,3 +31,7 @@ env/
 # Vite build
 build/
 interface/
+
+# Databases
+history.db
+*.db
