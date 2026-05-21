@@ -5,14 +5,19 @@ from typing import Optional
 
 OLLAMA_BASE = "http://localhost:11434"
 NVIDIA_BASE = "https://integrate.api.nvidia.com/v1"
-FINANCIAL_PROMPT = """Analiza estos gastos mensuales:
 
+FINANCIAL_PROMPT = """Analiza estos gastos mensuales y genera un reporte financiero detallado.
+
+Datos:
 {data}
 
-Genera:
-- resumen financiero
-- recomendaciones
-- categoría con mayor gasto"""
+Instrucciones:
+- Idioma del reporte: {language}
+- Moneda para mostrar los valores: {currency}
+- Convierte todos los valores monetarios a {currency} si es necesario
+- NO uses emojis en ninguna parte del reporte
+- Genera: resumen financiero, categorías de gasto con sus valores en {currency}, recomendaciones y categoria con mayor gasto
+- Para las categorias usa el formato: - NombreCategoria: ValorNumerico (sin simbolo de moneda, solo el numero)"""
 
 
 class LLMClient:
@@ -22,8 +27,8 @@ class LLMClient:
         self.nvidia_model = nvidia_model
         self.nvidia_api_key = nvidia_api_key
 
-    def generate(self, json_data: str) -> Optional[str]:
-        prompt = FINANCIAL_PROMPT.format(data=json_data)
+    def generate(self, json_data: str, currency: str = "original", language: str = "español") -> Optional[str]:
+        prompt = FINANCIAL_PROMPT.format(data=json_data, currency=currency, language=language)
         if self.use_ollama:
             return self._ollama_generate(prompt)
         return self._nvidia_generate(prompt)
@@ -36,7 +41,7 @@ class LLMClient:
                 timeout=120,
             )
             return resp.json().get("response", "")
-        except Exception as e:
+        except Exception:
             return None
 
     def _nvidia_generate(self, prompt: str) -> Optional[str]:
@@ -51,5 +56,5 @@ class LLMClient:
                 stream=False,
             )
             return completion.choices[0].message.content
-        except Exception as e:
+        except Exception:
             return None
