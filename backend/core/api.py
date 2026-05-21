@@ -1,11 +1,13 @@
-import json
-import requests
-import webview
 import openpyxl
+import webview
 from typing import Any
+from backend.core.llm import LLMClient
 
 
 class API:
+    def __init__(self, llm_client: LLMClient):
+        self._llm = llm_client
+
     def minimize_window(self) -> None:
         if webview.windows:
             webview.windows[0].minimize()
@@ -28,25 +30,9 @@ class API:
 
     def generate_report(self, json_data: str) -> dict[str, Any]:
         try:
-            response = requests.post(
-                "http://localhost:11434/api/generate",
-                json={
-                    "model": "phi3",
-                    "prompt": f"""
-Analiza estos gastos mensuales:
-
-{json_data}
-
-Genera:
-- resumen financiero
-- recomendaciones
-- categoría con mayor gasto
-""",
-                    "stream": False,
-                },
-                timeout=120,
-            )
-            data = response.json()
-            return {"success": True, "response": data.get("response", "")}
+            response = self._llm.generate(json_data)
+            if response is None:
+                return {"success": False, "error": "No response from LLM"}
+            return {"success": True, "response": response}
         except Exception as e:
             return {"success": False, "error": str(e)}
