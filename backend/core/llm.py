@@ -16,6 +16,13 @@ Resumen de datos:
 Primeras filas (muestra):
 {sample}
 
+NOMBRES EXACTOS DE COLUMNAS DISPONIBLES EN `data`:
+{column_names}
+
+REGLA CRITICA: Al escribir codigo Python, SOLO puedes usar estos nombres de columna exactos.
+Nunca uses nombres inventados como "total", "monto", "categoria".
+Ejemplo correcto si la columna se llama "Monto (COP)": data["Monto (COP)"]
+
 Instrucciones:
 - Genera un reporte financiero detallado en markdown
 - Incluye: resumen ejecutivo, desglose por categorias, recomendaciones y categoria con mayor gasto
@@ -26,12 +33,11 @@ Instrucciones:
 Para calculos adicionales puedes usar bloques de codigo Python con esta estructura exacta:
 
 ```python
-# data es un dict: cada columna es una lista de valores
-# Ej: data["Monto"] = [1500.0, 2300.0, ...], data["Categoria"] = ["Almuerzo", ...]
+# data tiene los nombres de columna listados arriba
 # print() muestra el resultado del calculo
 
-total = sum(data["Monto"])
-print(f"Total gastado: {total}")
+total = sum(data["NombreExactoDeColumna"])
+print(f"Total: {total}")
 ```
 
 Funciones disponibles unicamente:
@@ -65,11 +71,14 @@ class LLMClient:
         rows = parsed.get("rows", [])
         data_dict = self._rows_to_columns(rows) if rows else {}
 
+        column_names = "\n".join(f'  - "{k}"' for k in data_dict.keys())
+
         prompt = _SUMMARY_PROMPT.format(
             summary=json.dumps(summary, indent=2, ensure_ascii=False),
             sample=json.dumps(sample, indent=2, ensure_ascii=False),
             currency=currency,
             language=language,
+            column_names=column_names,
         )
 
         if self.use_ollama:
@@ -89,6 +98,12 @@ class LLMClient:
         for r in rows:
             for k in cols:
                 cols[k].append(r.get(k))
+        aliases = {}
+        for k in list(cols.keys()):
+            normalized = k.lower().split("(")[0].strip()
+            if normalized != k and normalized not in cols:
+                aliases[normalized] = cols[k]
+        cols.update(aliases)
         return cols
 
     def _ollama_generate(self, prompt: str) -> Optional[str]:
