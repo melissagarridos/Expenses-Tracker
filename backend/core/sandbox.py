@@ -2,6 +2,7 @@ import ast
 import io
 import threading
 from contextlib import redirect_stdout
+from backend.utils.helpers import debug_print
 
 _ALLOWED_AST = {
     ast.Module, ast.Constant, ast.List, ast.Dict, ast.Tuple, ast.Set,
@@ -41,15 +42,23 @@ _SAFE_BUILTINS = {
 
 
 def execute(code: str, data: dict, timeout: int = 15) -> str:
+    debug_print(f"[SANDBOX] code:\n{code}")
+    debug_print(f"[SANDBOX] data keys: {list(data.keys())}")
+    for k in data:
+        debug_print(f"[SANDBOX] data['{k}'] len={len(data[k])}")
+
     try:
         tree = ast.parse(code, mode="exec")
     except SyntaxError as e:
+        debug_print(f"[SANDBOX] SyntaxError: {e}")
         return f"Error: {e}"
 
     for node in ast.walk(tree):
         if type(node) not in _ALLOWED_AST:
+            debug_print(f"[SANDBOX] blocked AST: {type(node).__name__}")
             return f"Error: bloque no permitido ({type(node).__name__})"
         if isinstance(node, ast.Attribute) and node.attr.startswith("__"):
+            debug_print(f"[SANDBOX] blocked dunder: {node.attr}")
             return "Error: acceso a atributos privados no permitido"
 
     output = io.StringIO()
@@ -61,6 +70,7 @@ def execute(code: str, data: dict, timeout: int = 15) -> str:
             with redirect_stdout(output):
                 exec(compile(tree, "<sandbox>", "exec"), restricted)
         except Exception as e:
+            debug_print(f"[SANDBOX] exec error: {e}")
             result["error"] = str(e)
 
     thread = threading.Thread(target=target, daemon=True)
@@ -68,9 +78,12 @@ def execute(code: str, data: dict, timeout: int = 15) -> str:
     thread.join(timeout)
 
     if thread.is_alive():
+        debug_print(f"[SANDBOX] timeout")
         return "Error: Timeout"
 
     if result["error"]:
         return f"Error: {result['error']}"
 
-    return output.getvalue().strip()
+    result_text = output.getvalue().strip()
+    debug_print(f"[SANDBOX] output: {result_text}")
+    return result_text
