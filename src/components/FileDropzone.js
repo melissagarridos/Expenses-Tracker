@@ -9,8 +9,8 @@ export function mountFileDropzone(container, onFileSelected) {
                     <line x1="9" y1="15" x2="15" y2="15"/>
                 </svg>
             </div>
-            <span class="text-[11px] text-center leading-relaxed" style="color:var(--text2);">Seleccionar archivo Excel</span>
-            <span class="text-[10px]" style="color:var(--dim);">.xlsx · .xls</span>
+            <span class="text-[11px] text-center leading-relaxed" style="color:var(--text2);">Seleccionar archivo</span>
+            <span class="text-[10px]" style="color:var(--dim);">.xlsx · .xls · .csv</span>
         </div>
         <div id="file-selected" class="hidden flex items-center gap-2 rounded-md px-2.5 py-2 text-[11px] overflow-hidden" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent);flex-shrink:0;">
@@ -52,6 +52,13 @@ export function mountFileDropzone(container, onFileSelected) {
                 dropzone.classList.add('hidden')
                 fileSelected.classList.remove('hidden')
                 onFileSelected(result.path)
+            } else {
+                const errEl = container.querySelector('.dropzone-error') || document.createElement('p')
+                errEl.className = 'dropzone-error text-[9px] mt-1'
+                errEl.style.cssText = 'color:var(--danger);text-align:center;'
+                errEl.textContent = result.error || 'Error al abrir el archivo'
+                container.appendChild(errEl)
+                setTimeout(() => errEl.remove(), 3000)
             }
         } finally {
             dropzone.style.opacity = ''

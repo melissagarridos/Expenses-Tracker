@@ -235,6 +235,10 @@ function restoreReport(report) {
 }
 
 async function runAnalysis() {
+    console.log('[UI] runAnalysis')
+    console.log('[UI] selectedFilePath:', selectedFilePath)
+    console.log('[UI] selectedFilename:', selectedFilename)
+    console.log('[UI] totalRows:', totalRows, 'currency:', selectedCurrency, 'lang:', selectedLanguage)
     if (!selectedFilePath || !selectedFilename) return
 
     if (totalRows > 500) {
@@ -248,20 +252,33 @@ async function runAnalysis() {
 }
 
 async function doGenerate() {
+    console.log('[UI] doGenerate')
     setState('loading')
 
-    const reportResult = await window.pywebview.api.generate_report(
-        selectedFilename,
-        selectedCurrency,
-        selectedLanguage
-    )
+    console.log('[UI] calling generate_report...')
+    let reportResult
+    try {
+        reportResult = await window.pywebview.api.generate_report(
+            selectedFilename,
+            selectedCurrency,
+            selectedLanguage
+        )
+    } catch (e) {
+        console.error('[UI] generate_report threw:', e)
+        document.getElementById('error-msg').textContent = String(e)
+        setState('error')
+        return
+    }
+    console.log('[UI] generate_report result:', reportResult)
 
     if (!reportResult.success) {
+        console.error('[UI] generate_report failed:', reportResult.error)
         document.getElementById('error-msg').textContent = reportResult.error
         setState('error')
         return
     }
 
+    console.log('[UI] mounting report, html length:', reportResult.html?.length, 'raw_md length:', reportResult.raw_md?.length)
     const reportContainer = document.getElementById('state-report')
     mountReportView(reportContainer, reportResult.html, reportResult.raw_md, selectedCurrency)
     setState('report')

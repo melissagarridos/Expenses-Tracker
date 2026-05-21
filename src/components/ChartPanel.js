@@ -21,6 +21,24 @@ function getCurrencyFormat(currency) {
     return CURRENCY_LOCALES[currency] || CURRENCY_LOCALES['original']
 }
 
+function parseNumber(raw) {
+    const s = raw.trim()
+    const hasCommaDecimal = /\d+\.\d{3},\d+/.test(s)
+    const hasDotDecimal = /\d+,\d{3}\.\d+/.test(s)
+    if (hasCommaDecimal) {
+        return parseFloat(s.replace(/\./g, '').replace(',', '.'))
+    }
+    if (hasDotDecimal) {
+        return parseFloat(s.replace(/,/g, ''))
+    }
+    const dotParts = s.split('.')
+    const commaParts = s.split(',')
+    if (dotParts.length > 1 && dotParts[dotParts.length - 1].length === 3 && commaParts.length === 1) {
+        return parseFloat(s.replace(/\./g, ''))
+    }
+    return parseFloat(s.replace(/,/g, ''))
+}
+
 function parseCategories(text) {
     const lines = text.split('\n')
     const entries = []
@@ -36,7 +54,7 @@ function parseCategories(text) {
             const match = line.match(pattern)
             if (match) {
                 const label = match[1].trim()
-                const value = parseFloat(match[2].replace(/,/g, ''))
+                const value = parseNumber(match[2])
                 if (label && !isNaN(value) && value > 0) {
                     entries.push({ label, value })
                 }
