@@ -1,4 +1,5 @@
 import json
+import requests
 import webview
 import openpyxl
 from typing import Any
@@ -27,7 +28,6 @@ class API:
 
     def generate_report(self, json_data: str) -> dict[str, Any]:
         try:
-            import requests
             response = requests.post(
                 "http://localhost:11434/api/generate",
                 json={
