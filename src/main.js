@@ -3,6 +3,7 @@ import { mountTitlebar } from './components/Titlebar.js'
 import { mountFileDropzone } from './components/FileDropzone.js'
 import { mountReportView } from './components/ReportView.js'
 import { mountHistoryPanel } from './components/HistoryPanel.js'
+import { mountPrivacyModal } from './components/PrivacyModal.js'
 
 let selectedFilePath = null
 let selectedFilename = null
@@ -10,8 +11,10 @@ let selectedCurrency = 'original'
 let selectedLanguage = 'Español'
 
 function init() {
-    mountTitlebar()
-    mountApp()
+    mountPrivacyModal(() => {
+        mountTitlebar()
+        mountApp()
+    })
 }
 
 function mountApp() {
