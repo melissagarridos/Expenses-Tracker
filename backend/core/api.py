@@ -5,6 +5,7 @@ import webview
 from typing import Any
 from backend.core.llm import LLMClient
 from backend.core import excel, database
+from backend.utils.helpers import debug_print
 
 _CACHE: dict[str, Any] = {}
 
@@ -24,15 +25,24 @@ class API:
 
     def open_file_dialog(self) -> dict[str, Any]:
         try:
-            result = webview.windows[0].create_file_dialog(
+            if not webview.windows:
+                return {"success": False, "error": "Ventana no disponible"}
+            win = webview.windows[0]
+            debug_print(f"[DIALOG] opening file dialog...")
+
+            file_filters = ("Archivos Excel y CSV (*.xlsx;*.xls;*.csv)",)
+
+            result = win.create_file_dialog(
                 webview.FileDialog.OPEN,
                 allow_multiple=False,
-                file_types=("Excel Files (*.xlsx;*.xls)",),
+                file_types=file_filters,
             )
+            debug_print(f"[DIALOG] result: {result}")
             if result and len(result) > 0:
                 return {"success": True, "path": result[0]}
             return {"success": False, "error": "No file selected"}
         except Exception as e:
+            debug_print(f"[DIALOG] error: {e}")
             return {"success": False, "error": str(e)}
 
     def get_model_info(self) -> dict[str, str]:
@@ -80,6 +90,10 @@ class API:
             if not cached or cached.get("filename") != filename:
                 return {"success": False, "error": "No data loaded. Select a sheet first."}
 
+            debug_print(f"[API] generate_report: file={filename}, currency={currency}, lang={language}")
+            debug_print(f"[API] cached summary columns: {[c['name'] for c in cached.get('summary', {}).get('columns', [])]}")
+            debug_print(f"[API] cached rows: {len(cached.get('rows', []))}")
+
             payload = {
                 "summary": cached["summary"],
                 "sample": cached["sample"],
@@ -89,12 +103,18 @@ class API:
 
             raw_md = self._llm.generate(json.dumps(payload), currency=currency, language=language)
             if raw_md is None:
+                debug_print(f"[API] LLM returned None")
                 return {"success": False, "error": "No response from LLM"}
 
+            debug_print(f"[API] raw_md length: {len(raw_md)}")
+            debug_print(f"[API] raw_md (first 600):\n{raw_md[:600]}")
+
             html = markdown.markdown(raw_md, extensions=["nl2br", "sane_lists"])
+            debug_print(f"[API] html length: {len(html)}")
             database.save_report(filename, currency, language, raw_md, html)
             return {"success": True, "html": html, "raw_md": raw_md}
         except Exception as e:
+            debug_print(f"[API] generate_report exception: {e}")
             return {"success": False, "error": str(e)}
 
     def get_history(self) -> dict[str, Any]:
