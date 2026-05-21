@@ -68,8 +68,12 @@ class LLMClient:
         parsed = json.loads(json_data)
         summary = parsed.get("summary", {})
         sample = parsed.get("sample", [])
-        rows = parsed.get("rows", [])
-        data_dict = self._rows_to_columns(rows) if rows else {}
+        all_rows = parsed.get("all_rows") or parsed.get("rows", [])
+
+        data_dict = self._rows_to_columns(all_rows) if all_rows else {}
+        if not data_dict:
+            col_names = [c["name"] for c in summary.get("columns", [])]
+            data_dict = {k: [] for k in col_names}
 
         column_names = "\n".join(f'  - "{k}"' for k in data_dict.keys())
 

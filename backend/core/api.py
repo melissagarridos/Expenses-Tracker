@@ -84,6 +84,7 @@ class API:
                 "summary": cached["summary"],
                 "sample": cached["sample"],
                 "rows": cached["rows"] if len(cached["rows"]) <= 500 else [],
+                "all_rows": cached["rows"],
             }
 
             raw_md = self._llm.generate(json.dumps(payload), currency=currency, language=language)
