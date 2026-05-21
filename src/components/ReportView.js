@@ -1,38 +1,19 @@
 import { mountChartPanel } from './ChartPanel.js'
 
-function parseMarkdown(text) {
-    const html = text
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g, '<em>$1</em>')
-        .replace(/^#{1,3}\s+(.+)$/gm, '<h4 class="report-heading">$1</h4>')
-        .replace(/^[-*•]\s+(.+)$/gm, '<li class="report-item">$1</li>')
-
-    const withLists = html.replace(/(<li[\s\S]+?)(?=<li|$)/g, (match) => {
-        return `<ul class="report-list">${match}</ul>`
-    }).replace(/<\/ul>\s*<ul class="report-list">/g, '')
-
-    return withLists.split(/\n{2,}/).map(block => {
-        const trimmed = block.trim()
-        if (!trimmed) return ''
-        if (/^</.test(trimmed)) return trimmed
-        return `<p class="report-p">${trimmed}</p>`
-    }).join('\n')
-}
-
-export function mountReportView(container, rawText) {
+export function mountReportView(container, html, rawMd, currency = 'original') {
     container.innerHTML = `
-        <div class="report-view">
-            <div class="report-header">
-                <div class="report-badge">ANÁLISIS IA</div>
-                <div class="report-timestamp">${new Date().toLocaleString('es-CO')}</div>
+        <div class="flex flex-col gap-5">
+            <div class="flex items-center justify-between pb-4" style="border-bottom:1px solid var(--border);">
+                <div class="text-[9px] font-semibold tracking-[0.16em] rounded px-2.5 py-1" style="color:var(--accent);background:rgba(232,255,71,0.08);border:1px solid rgba(232,255,71,0.2);">ANALISIS IA</div>
+                <div class="text-[10px]" style="color:var(--dim);">${new Date().toLocaleString('es-CO')}</div>
             </div>
             <div id="chart-panel"></div>
-            <div class="report-divider"></div>
-            <div class="report-body">
-                ${parseMarkdown(rawText)}
+            <div class="h-px" style="background:var(--border);"></div>
+            <div class="report-content flex flex-col gap-2">
+                ${html}
             </div>
         </div>
     `
 
-    mountChartPanel(container.querySelector('#chart-panel'), rawText)
+    mountChartPanel(container.querySelector('#chart-panel'), rawMd, currency)
 }
