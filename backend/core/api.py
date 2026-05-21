@@ -16,6 +16,23 @@ class API:
         if webview.windows:
             webview.windows[0].destroy()
 
+    def open_file_dialog(self) -> dict[str, Any]:
+        try:
+            result = webview.windows[0].create_file_dialog(
+                webview.FileDialog.OPEN,
+                allow_multiple=False,
+                file_types=("Excel Files (*.xlsx;*.xls)",),
+            )
+            if result and len(result) > 0:
+                return {"success": True, "path": result[0]}
+            return {"success": False, "error": "No file selected"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def get_model_info(self) -> dict[str, str]:
+        model = self._llm.ollama_model if self._llm.use_ollama else self._llm.nvidia_model
+        return {"model": model}
+
     def process_excel(self, file_path: str) -> dict[str, Any]:
         try:
             wb = openpyxl.load_workbook(file_path)
