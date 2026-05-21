@@ -63,6 +63,9 @@ class API:
         model = self._llm.ollama_model if self._llm.use_ollama else self._llm.nvidia_model
         return {"model": model}
 
+    def get_provider(self) -> dict[str, Any]:
+        return {"ollama": self._llm.use_ollama, "provider": "ollama" if self._llm.use_ollama else "nvidia"}
+
     def process_excel(self, file_path: str) -> dict[str, Any]:
         try:
             wb = openpyxl.load_workbook(file_path)
