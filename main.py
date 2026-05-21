@@ -1,8 +1,6 @@
 import os
 import sys
-import json
 import platform
-import threading
 from typing import Optional
 import webview
 from screeninfo import get_monitors
