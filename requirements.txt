@@ -3,3 +3,4 @@ screeninfo
 openpyxl
 requests
 python-dotenv
+openai
