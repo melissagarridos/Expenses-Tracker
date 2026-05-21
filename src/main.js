@@ -4,11 +4,14 @@ import { mountFileDropzone } from './components/FileDropzone.js'
 import { mountReportView } from './components/ReportView.js'
 import { mountHistoryPanel } from './components/HistoryPanel.js'
 import { mountPrivacyModal } from './components/PrivacyModal.js'
+import { mountLargeFileModal } from './components/LargeFileModal.js'
 
 let selectedFilePath = null
 let selectedFilename = null
+let selectedSheet = null
 let selectedCurrency = 'original'
 let selectedLanguage = 'Español'
+let totalRows = 0
 
 function init() {
     mountPrivacyModal(() => {
@@ -34,6 +37,16 @@ function mountApp() {
                 <div>
                     <p class="text-[9px] font-medium tracking-[0.12em] mb-2.5" style="color:var(--dim);">ARCHIVO</p>
                     <div id="dropzone-container"></div>
+                </div>
+
+                <div id="sheet-section" class="hidden">
+                    <p class="text-[9px] font-medium tracking-[0.12em] mb-2.5" style="color:var(--dim);">HOJA</p>
+                    <select id="sheet-select" class="w-full rounded px-2.5 py-1.5 text-[11px] border-none outline-none cursor-pointer" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);font-family:'JetBrains Mono',monospace;"></select>
+                </div>
+
+                <div id="preview-section" class="hidden">
+                    <p class="text-[9px] font-medium tracking-[0.12em] mb-2.5" style="color:var(--dim);">VISTA PREVIA</p>
+                    <div id="preview-content" class="rounded px-2.5 py-2 text-[10px] leading-relaxed" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);"></div>
                 </div>
 
                 <div>
@@ -109,18 +122,7 @@ function mountApp() {
 
     mountFileDropzone(
         document.getElementById('dropzone-container'),
-        (path) => {
-            selectedFilePath = path
-            if (path) {
-                const parts = path.replace(/\\/g, '/').split('/')
-                selectedFilename = parts[parts.length - 1]
-            } else {
-                selectedFilename = null
-            }
-            document.getElementById('btn-generate').disabled = !path
-            document.getElementById('btn-generate').style.opacity = path ? '1' : '0.3'
-            document.getElementById('btn-generate').style.cursor = path ? 'pointer' : 'not-allowed'
-        }
+        onFileSelected
     )
 
     document.getElementById('currency-select').addEventListener('change', e => {
@@ -131,6 +133,11 @@ function mountApp() {
         selectedLanguage = e.target.value
     })
 
+    document.getElementById('sheet-select').addEventListener('change', e => {
+        selectedSheet = e.target.value
+        loadSheetPreview()
+    })
+
     const btn = document.getElementById('btn-generate')
     btn.style.opacity = '0.3'
     btn.style.cursor = 'not-allowed'
@@ -139,8 +146,70 @@ function mountApp() {
 
     fetchModelInfo()
     mountHistoryPanel(document.getElementById('history-container'), restoreReport)
-
     document.getElementById('btn-generate').addEventListener('click', runAnalysis)
+}
+
+async function onFileSelected(path) {
+    selectedFilePath = path
+    selectedSheet = null
+
+    if (path) {
+        const parts = path.replace(/\\/g, '/').split('/')
+        selectedFilename = parts[parts.length - 1]
+        await fetchSheets(path)
+    } else {
+        selectedFilename = null
+        document.getElementById('sheet-section').classList.add('hidden')
+        document.getElementById('preview-section').classList.add('hidden')
+        document.getElementById('btn-generate').disabled = true
+        document.getElementById('btn-generate').style.opacity = '0.3'
+        document.getElementById('btn-generate').style.cursor = 'not-allowed'
+    }
+}
+
+async function fetchSheets(path) {
+    try {
+        const res = await window.pywebview.api.get_sheet_names(path)
+        if (!res.success) return
+
+        const select = document.getElementById('sheet-select')
+        select.innerHTML = res.sheets.map((s, i) =>
+            `<option value="${s.name}">${s.name} (${s.rows.toLocaleString()} filas)</option>`
+        ).join('')
+
+        const section = document.getElementById('sheet-section')
+        section.classList.remove('hidden')
+        selectedSheet = res.sheets[0].name
+        await loadSheetPreview()
+    } catch {}
+}
+
+async function loadSheetPreview() {
+    if (!selectedFilePath || !selectedSheet) return
+    try {
+        const res = await window.pywebview.api.process_sheet(selectedFilePath, selectedSheet)
+        if (!res.success) return
+
+        const preview = document.getElementById('preview-content')
+        const cols = res.summary.columns.map(c => {
+            let info = `<strong style="color:var(--text);">${c.name}</strong> <span style="color:var(--dim);">(${c.type})</span>`
+            if (c.type === 'numeric') {
+                info += `<br><span style="color:var(--text2);">min: ${c.min} &middot; max: ${c.max} &middot; suma: ${c.sum}</span>`
+            }
+            return info
+        }).join('<br>')
+
+        totalRows = res.total_rows
+        preview.innerHTML = `
+            <div style="color:var(--text);font-weight:600;">${totalRows.toLocaleString()} filas &middot; ${res.summary.columns.length} columnas</div>
+            <div style="margin-top:6px;">${cols}</div>
+        `
+
+        document.getElementById('preview-section').classList.remove('hidden')
+        document.getElementById('btn-generate').disabled = false
+        document.getElementById('btn-generate').style.opacity = '1'
+        document.getElementById('btn-generate').style.cursor = 'pointer'
+    } catch {}
 }
 
 async function fetchModelInfo() {
@@ -166,20 +235,23 @@ function restoreReport(report) {
 }
 
 async function runAnalysis() {
-    if (!selectedFilePath) return
+    if (!selectedFilePath || !selectedFilename) return
 
-    setState('loading')
-
-    const excelResult = await window.pywebview.api.process_excel(selectedFilePath)
-    if (!excelResult.success) {
-        document.getElementById('error-msg').textContent = excelResult.error
-        setState('error')
+    if (totalRows > 500) {
+        mountLargeFileModal(totalRows, () => {
+            doGenerate()
+        }, () => {})
         return
     }
 
+    doGenerate()
+}
+
+async function doGenerate() {
+    setState('loading')
+
     const reportResult = await window.pywebview.api.generate_report(
-        JSON.stringify(excelResult.data),
-        excelResult.filename,
+        selectedFilename,
         selectedCurrency,
         selectedLanguage
     )
