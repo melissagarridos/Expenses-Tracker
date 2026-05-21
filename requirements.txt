@@ -2,3 +2,4 @@ pywebview
 screeninfo
 openpyxl
 requests
+python-dotenv
