@@ -1,23 +1,54 @@
+import json
+import re
 import requests
 from openai import OpenAI
-from typing import Optional
-
+from typing import Any, Optional
+from backend.core.sandbox import execute as sandbox_execute
 
 OLLAMA_BASE = "http://localhost:11434"
 NVIDIA_BASE = "https://integrate.api.nvidia.com/v1"
 
-FINANCIAL_PROMPT = """Analiza estos gastos mensuales y genera un reporte financiero detallado.
+_SUMMARY_PROMPT = """Eres un asistente de analisis financiero.
 
-Datos:
-{data}
+Resumen de datos:
+{summary}
+
+Primeras filas (muestra):
+{sample}
 
 Instrucciones:
-- Idioma del reporte: {language}
-- Moneda para mostrar los valores: {currency}
-- Convierte todos los valores monetarios a {currency} si es necesario
-- NO uses emojis en ninguna parte del reporte
-- Genera: resumen financiero, categorías de gasto con sus valores en {currency}, recomendaciones y categoria con mayor gasto
-- Para las categorias usa el formato: - NombreCategoria: ValorNumerico (sin simbolo de moneda, solo el numero)"""
+- Genera un reporte financiero detallado en markdown
+- Incluye: resumen ejecutivo, desglose por categorias, recomendaciones y categoria con mayor gasto
+- NO uses emojis
+- Idioma: {language}
+- Moneda para los valores: {currency}
+
+Para calculos adicionales puedes usar bloques de codigo Python con esta estructura exacta:
+
+```python
+# data es un dict: cada columna es una lista de valores
+# Ej: data["Monto"] = [1500.0, 2300.0, ...], data["Categoria"] = ["Almuerzo", ...]
+# print() muestra el resultado del calculo
+
+total = sum(data["Monto"])
+print(f"Total gastado: {total}")
+```
+
+Funciones disponibles unicamente:
+sum, max, min, len, sorted, round, float, int, str, list, dict, tuple, set, bool, range, enumerate, zip, map, filter, any, all, isinstance, abs, pow, reversed, slice
+
+No uses imports. No definas clases. No uses yield, async, await. Solo aritmetica, listas/dicts y comprehensions."""
+
+
+def _process_code_blocks(text: str, data: dict) -> str:
+    def replacer(match):
+        code = match.group(1).strip()
+        comment = f"```python\n{code}\n```"
+        result = sandbox_execute(code, data)
+        if result.startswith("Error:"):
+            return f"{comment}\n> {result}"
+        return f"{comment}\n> Resultado:\n{result}\n"
+    return re.sub(r"```python\n(.*?)```", replacer, text, flags=re.DOTALL)
 
 
 class LLMClient:
@@ -28,10 +59,37 @@ class LLMClient:
         self.nvidia_api_key = nvidia_api_key
 
     def generate(self, json_data: str, currency: str = "original", language: str = "español") -> Optional[str]:
-        prompt = FINANCIAL_PROMPT.format(data=json_data, currency=currency, language=language)
+        parsed = json.loads(json_data)
+        summary = parsed.get("summary", {})
+        sample = parsed.get("sample", [])
+        rows = parsed.get("rows", [])
+        data_dict = self._rows_to_columns(rows) if rows else {}
+
+        prompt = _SUMMARY_PROMPT.format(
+            summary=json.dumps(summary, indent=2, ensure_ascii=False),
+            sample=json.dumps(sample, indent=2, ensure_ascii=False),
+            currency=currency,
+            language=language,
+        )
+
         if self.use_ollama:
-            return self._ollama_generate(prompt)
-        return self._nvidia_generate(prompt)
+            raw = self._ollama_generate(prompt)
+        else:
+            raw = self._nvidia_generate(prompt)
+
+        if raw is None:
+            return None
+
+        return _process_code_blocks(raw, data_dict)
+
+    def _rows_to_columns(self, rows: list[dict]) -> dict[str, list]:
+        if not rows:
+            return {}
+        cols = {k: [] for k in rows[0]}
+        for r in rows:
+            for k in cols:
+                cols[k].append(r.get(k))
+        return cols
 
     def _ollama_generate(self, prompt: str) -> Optional[str]:
         try:
