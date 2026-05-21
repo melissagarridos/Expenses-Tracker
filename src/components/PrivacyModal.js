@@ -1,22 +1,14 @@
-export async function mountPrivacyModal(onAccept, onReject) {
+export function mountPrivacyModal(onAccept, onReject) {
     const overlay = document.createElement('div')
     overlay.id = 'privacy-overlay'
     overlay.className = 'fixed inset-0 z-[99999] flex items-center justify-center'
     overlay.style.cssText = 'background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);'
 
-    let provider = 'local'
-    try {
-        const info = await window.pywebview.api.get_provider()
-        provider = info.provider
-    } catch {}
-
-    const isExternal = provider !== 'ollama'
-
     overlay.innerHTML = `
         <div class="rounded-xl p-8 max-w-md w-full mx-4 flex flex-col gap-6"
              style="background:var(--surface);border:1px solid var(--border);">
             <div class="flex items-center gap-3">
-                <div class="w-3 h-3 rounded-sm" style="background:${isExternal ? 'var(--danger)' : 'var(--accent)'};"></div>
+                <div class="w-3 h-3 rounded-sm" style="background:var(--accent);"></div>
                 <span class="text-sm font-bold tracking-wide" style="font-family:'Syne',sans-serif;color:var(--text);">
                     Aviso de privacidad
                 </span>
@@ -29,24 +21,9 @@ export async function mountPrivacyModal(onAccept, onReject) {
                     configurado para generar el análisis financiero.
                 </p>
 
-                ${isExternal ? `
-                <div class="rounded-lg p-4" style="background:rgba(255,77,109,0.08);border:1px solid rgba(255,77,109,0.2);">
-                    <p class="font-semibold mb-1" style="color:var(--danger);">Proveedor externo detectado</p>
-                    <p style="color:var(--text2);">
-                        Actualmente estás usando <strong style="color:var(--text);">NVIDIA</strong> como proveedor de IA.
-                        Tus datos serán procesados por servidores externos. Revisa las políticas de privacidad
-                        del proveedor antes de continuar.
-                    </p>
+                <div id="privacy-warning" class="rounded-lg p-4" style="background:rgba(255,77,109,0.08);border:1px solid rgba(255,77,109,0.2);">
+                    <p style="color:var(--dim);">Verificando proveedor...</p>
                 </div>
-                ` : `
-                <div class="rounded-lg p-4" style="background:rgba(232,255,71,0.06);border:1px solid rgba(232,255,71,0.15);">
-                    <p class="font-semibold mb-1" style="color:var(--accent);">Procesamiento local</p>
-                    <p style="color:var(--text2);">
-                        Estás usando <strong style="color:var(--text);">Ollama</strong> como proveedor de IA.
-                        Todo el procesamiento se realiza en tu máquina local. Ningún dato sale de tu equipo.
-                    </p>
-                </div>
-                `}
 
                 <p class="text-[11px]" style="color:var(--dim);">
                     Puedes cambiar el proveedor modificando el archivo <code style="color:var(--text);">.env</code>
@@ -83,4 +60,36 @@ export async function mountPrivacyModal(onAccept, onReject) {
             overlay.remove()
         }
     })
+
+    fetchProviderInfo()
+}
+
+async function fetchProviderInfo() {
+    const warning = document.getElementById('privacy-warning')
+    if (!warning) return
+    try {
+        const info = await window.pywebview.api.get_provider()
+        if (info.provider === 'ollama') {
+            warning.innerHTML = `
+                <p class="font-semibold mb-1" style="color:var(--accent);">Procesamiento local</p>
+                <p style="color:var(--text2);">
+                    Estás usando <strong style="color:var(--text);">Ollama</strong> como proveedor de IA.
+                    Todo el procesamiento se realiza en tu máquina local. Ningún dato sale de tu equipo.
+                </p>
+            `
+            warning.style.background = 'rgba(232,255,71,0.06)'
+            warning.style.borderColor = 'rgba(232,255,71,0.15)'
+        } else {
+            warning.innerHTML = `
+                <p class="font-semibold mb-1" style="color:var(--danger);">Proveedor externo detectado</p>
+                <p style="color:var(--text2);">
+                    Actualmente estás usando <strong style="color:var(--text);">NVIDIA</strong> como proveedor de IA.
+                    Tus datos serán procesados por servidores externos. Revisa las políticas de privacidad
+                    del proveedor antes de continuar.
+                </p>
+            `
+        }
+    } catch {
+        warning.innerHTML = '<p style="color:var(--text2);">No se pudo verificar el proveedor.</p>'
+    }
 }
