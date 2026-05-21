@@ -21,6 +21,8 @@ def get_gui() -> str:
         return "edgechromium"
     elif system == "Darwin":
         return "cocoa"
+    elif system == "Linux":
+        return "qt"
     return "edgechromium"
 
 
